@@ -107,7 +107,8 @@ class SheetView{
   try{
    if(part.ty==='pdf'){const lib=await this.o.pdfjs();if(tk!==this.token)return false;const doc=await lib.getDocument({data:new Uint8Array(buf.slice(0)),disableRange:true,disableStream:true,disableAutoFetch:true,isEvalSupported:false}).promise;
     if(tk!==this.token){doc.destroy();return false}this.doc=doc;this.n=doc.numPages;
-    for(let i=1;i<=this.n;i++){const pg=await doc.getPage(i);if(tk!==this.token)return false;const vp=pg.getViewport({scale:1});this.pages.push({pg,w:vp.width,h:vp.height})}}
+    const want=(part.pg||[]).filter(n=>n>=1&&n<=doc.numPages),nums=want.length?want:Array.from({length:doc.numPages},(_,i)=>i+1);this.n=nums.length;
+    for(const i of nums){const pg=await doc.getPage(i);if(tk!==this.token)return false;const vp=pg.getViewport({scale:1});this.pages.push({pg,w:vp.width,h:vp.height})}}
    else{const url=URL.createObjectURL(new Blob([buf],{type:part.ty==='png'?'image/png':'image/jpeg'}));const im=new Image();await new Promise((ok,no)=>{im.onload=ok;im.onerror=no;im.src=url});if(tk!==this.token)return false;
     this.img=im;this.n=1;this.pages.push({im,w:im.naturalWidth,h:im.naturalHeight})}
   }catch(e){if(tk===this.token)this.say('הקובץ לא נפתח');return false}
