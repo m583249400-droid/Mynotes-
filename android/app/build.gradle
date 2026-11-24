@@ -1,0 +1,18 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'mn.live'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'com.mendybrandwin.mynotes'
+        minSdk 24
+        targetSdk 34
+        versionCode((project.findProperty('verCode') ?: '1') as Integer)
+        versionName "1." + (project.findProperty('verCode') ?: '0')
+    }
+    // one fixed key kept with the project, so every new build installs over the previous one and the library stays
+    signingConfigs { release { storeFile file('../mynotes.keystore'); storePassword 'mynotes-live'; keyAlias 'mynotes'; keyPassword 'mynotes-live' } }
+    buildTypes { release { minifyEnabled false; signingConfig signingConfigs.release } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+    lint { abortOnError false; checkReleaseBuilds false }
+    androidResources { noCompress 'html', 'js', 'wasm' }
+}
