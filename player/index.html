@@ -103,7 +103,7 @@ class SheetView{
   this.page=Math.max(1,Math.min(this.n,opt.page||1));this.say('');this.build();this.layout();return true}
  build(){this.wrap.innerHTML='';this.pages.forEach((p,i)=>{const d=h('div','sv-pg',this.wrap);p.el=d;p.cv=h('canvas','',d);p.rw=0;const s=document.createElementNS(NS,'svg');s.setAttribute('class','sv-ov');s.setAttribute('viewBox','0 0 1000 '+(1000*p.h/p.w));s.setAttribute('preserveAspectRatio','none');d.appendChild(s);p.ov=s;
    s.addEventListener('pointerdown',e=>this._pd(e,i));s.addEventListener('pointermove',e=>this._pm(e,i));s.addEventListener('pointerup',e=>this._pu(e,i));s.addEventListener('pointercancel',e=>this._pu(e,i))});this.paintNotes()}
- perView(){if(this.fit!=='page'||this.n<2)return 1;const W=this.root.clientWidth,H=this.root.clientHeight,p=this.pages[0];return (W>H&&2*p.w*(H/p.h)<=W+2)?2:1}
+ perView(){if(this.fit!=='page'||this.n<2)return 1;const tw=this.o.two?this.o.two():'auto';if(tw==='1')return 1;if(tw==='2')return 2;const W=this.root.clientWidth,H=this.root.clientHeight,p=this.pages[0];return (W>H&&2*p.w*(H/p.h)<=W+2)?2:1}
  layout(){if(!this.n)return;const W=this.root.clientWidth,H=this.root.clientHeight;if(!W||!H)return;const pv=this.perView();this.root.classList.toggle('sv-width',this.fit==='width');
   if(this.fit==='page'){const first=pv===2?this.page-((this.page-1)%2):this.page;this.pages.forEach((p,i)=>{const on=i+1>=first&&i+1<first+pv;p.el.style.display=on?'':'none';if(!on)return;const sc=Math.min((W/pv)/p.w,H/p.h);this.size(p,p.w*sc,p.h*sc)});
    // warm the neighbours so a page turn is instant
@@ -230,7 +230,7 @@ addEventListener('keydown',e=>{if(!$('menu').hidden||!$('pick').hidden)return;co
 // ----- menu -----
 function openMenu(){const free=st&&st.mode==='free';$('menu').hidden=false;$('top').classList.remove('off');
  $('acts').innerHTML='<button data-a="fit">'+(view.fit==='page'?'רוחב מלא (גלילה)':'עמוד שלם')+'</button><button data-a="fs">מסך מלא</button><button data-a="inst">כלי: '+esc(instHe(me.inst))+'</button>'+(mine&&st&&st.cur?'<button data-a="back">חזרה לשיר של המנצח</button>':'')+'<button data-a="x">סגור</button>';
- $('q').hidden=!free;$('q').value='';list('')}
+ $('q').hidden=!free||(st.ps&&st.ps.search===false);$('q').value='';list('')}
 function closeMenu(){$('menu').hidden=true;flashTop(1500)}
 function list(q){const L=$('list'),t=target();let h='';q=q.trim().toLowerCase();const free=st&&st.mode==='free';
  const row=(s,n)=>'<button class="it'+(t&&t.id===s.id?' cur':'')+'" data-id="'+s.id+'"'+(free?'':' disabled')+'><span class="n">'+(n||'')+'</span><span class="t">'+esc(s.t)+'</span><span class="k">'+esc(songKey(s,null))+'</span></button>';
