@@ -84,8 +84,13 @@ public class MainActivity extends Activity {
         web.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onPermissionRequest(final PermissionRequest r) {
-                boolean audio = false;
-                for (String x : r.getResources()) if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(x)) audio = true;
+                boolean audio = false, midi = false;
+                for (String x : r.getResources()) {
+                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(x)) audio = true;
+                    if (PermissionRequest.RESOURCE_MIDI_SYSEX.equals(x)) midi = true;
+                }
+                // a USB piano keyboard: nothing to ask the user, the tablet itself decides
+                if (midi && !audio) { r.grant(new String[]{PermissionRequest.RESOURCE_MIDI_SYSEX}); return; }
                 if (!audio) { r.deny(); return; }
                 if (Build.VERSION.SDK_INT < 23 || checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                     r.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
