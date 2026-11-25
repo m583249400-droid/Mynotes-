@@ -4,8 +4,8 @@
 <script>
 // the tablet's own small page: a secure phone page hands it the songs, and it passes them to the tablet next to it
 (()=>{const q=new URLSearchParams(location.search),k=q.get('k')||'',O=window.opener,$=id=>document.getElementById(id);
- if(!O){$('t').textContent='כמעט';$('p').innerHTML='את השירים שולחים מתוך MyNotes בטלפון:<br>סנכרון ← שליחת השירים מהמכשיר הזה<br>ושם סורקים את הקוד.';return}
- $('p').textContent='מעביר שירים לטאבלט… לא לסגור את החלון';let got=false;const hi=setInterval(()=>{if(got)return clearInterval(hi);try{O.postMessage({mn:'sync',t:'ready'},'*')}catch(e){}},300);let n=0;
+ if(!O){$('t').textContent='כמעט';$('p').innerHTML='את השירים שולחים מתוך MyNotes במכשיר השני:<br>סנכרון ← שליחת השירים מהמכשיר הזה<br>ושם סורקים את הקוד.';return}
+ $('p').textContent='מעביר שירים… לא לסגור את החלון';let got=false;const hi=setInterval(()=>{if(got)return clearInterval(hi);try{O.postMessage({mn:'sync',t:'ready'},'*')}catch(e){}},300);let n=0;
  addEventListener('message',async e=>{if(e.source!==O||!e.data||e.data.mn!=='sync')return;got=true;const d=e.data,r=o=>O.postMessage(Object.assign({mn:'sync',id:d.id},o),'*');
   try{if(d.t==='idx'){const x=await fetch('/in/idx?k='+encodeURIComponent(k),{cache:'no-store'});if(x.status===403)return r({ok:false,err:'code'});if(!x.ok)return r({ok:false,err:'net'});r({ok:true,idx:await x.json()})}
    else if(d.t==='put'){const x=await fetch('/in/s/'+d.n+'?k='+encodeURIComponent(k),{method:'PUT',body:JSON.stringify(d.o)});if(!x.ok)return r({ok:false,err:'put '+x.status});n++;$('p').textContent='הועברו '+n+' שירים…';r({ok:true})}
