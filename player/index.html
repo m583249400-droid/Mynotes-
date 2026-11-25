@@ -24,7 +24,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 #cue.stop{background:rgba(209,31,60,.96);color:#fff}
 .full{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;background:inherit;background-color:#101319}
 body.light .full{background-color:#eef0f4}
-.full h1{margin:0;font-size:26px}.full p{margin:0;opacity:.7;font-size:17px}
+.full h1{margin:0;font-size:26px}.full p{margin:0;opacity:.7;font-size:17px}#waitInst{margin-top:6px;height:46px;padding:0 20px;border-radius:23px;border:1px solid rgba(128,128,128,.45);background:transparent;color:inherit;font:600 16px system-ui;cursor:pointer}#waitInst[hidden]{display:none}
 .logo{font-weight:800;font-size:30px;letter-spacing:.5px}.logo small{display:block;font-weight:500;font-size:13px;opacity:.6;letter-spacing:2px;margin-top:2px}
 #insts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;width:min(760px,94vw)}
 #insts button{background:#1c212c;border:1px solid #2c3444;border-radius:16px;padding:20px 10px;font-size:21px;font-weight:700}
@@ -56,7 +56,7 @@ body.light #q{background:#f5f6f9;border-color:#d5d9e2}
 <div id="lost" hidden>אין חיבור</div>
 <div id="ban" hidden></div>
 <div id="cue" hidden></div>
-<div id="wait" class="full"><div class="logo">MyNotes Live<small>MENDY BRANDWIN PRODUCTION</small></div><p id="waitMsg">ממתין למנצח…</p></div>
+<div id="wait" class="full"><div class="logo">MyNotes Live<small>MENDY BRANDWIN PRODUCTION</small></div><p id="waitMsg">ממתין למנצח…</p><button id="waitInst" hidden></button></div>
 <div id="pick" class="full" hidden><div class="logo">MyNotes Live<small>MENDY BRANDWIN PRODUCTION</small></div><h1>על איזה כלי אתה מנגן?</h1><input id="nm" placeholder="השם שלך (לא חובה)" maxlength="24" autocomplete="off"><div id="insts"></div></div>
 <div id="menu" hidden><div id="sheet"><div id="acts"></div><input id="q" placeholder="חיפוש שיר…" autocomplete="off" hidden><div id="list"></div></div></div>
 <script>// shared by the leader screen and the musician page
@@ -217,7 +217,7 @@ function target(){if(!st)return null;if(mine&&lib.songs[mine.id])return mine;if(
 async function blob(key){if(blobs.has(key))return blobs.get(key);const p=fetch('/b/'+key).then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()});blobs.set(key,p);p.catch(()=>blobs.delete(key));if(blobs.size>60){const k=blobs.keys().next().value;if(k!==key)blobs.delete(k)}return p}
 function notesFor(song,part){return (song.notes||[]).filter(n=>n.kind!=='banner'&&(n.bar!=null?!!part.m:(n.pi===part.pi&&(!n.key||n.key===part.key))))}
 async function refresh(force){
- $('pick').hidden=!!me.inst;if(!me.inst)return;
+ $('pick').hidden=!!me.inst;waitBtn();if(!me.inst){$('wait').hidden=true;return}
  const t=target(),song=t&&lib.songs[t.id];
  if(!st){$('wait').hidden=false;$('waitMsg').textContent='ממתין למנצח…';return}
  if(!t||!song){$('wait').hidden=false;$('waitMsg').textContent=st.name?('מחובר · '+st.name):'מחובר. ממתין לשיר הראשון…';shown={id:null};$('ban').hidden=true;return}
@@ -244,6 +244,12 @@ $('insts').onclick=e=>{const b=e.target.closest('button');if(b)setInst(b.dataset
 let lock=null,ns=null;async function awake(){try{if(navigator.wakeLock){lock=await navigator.wakeLock.request('screen');return}}catch(e){}try{if(!ns)ns=new NoSleep();await ns.enable()}catch(e){}}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){awake();if(!ws||ws.readyState>1)connect()}});
 
+// ----- the waiting screen must never be a dead end: the instrument can always be changed from it -----
+function waitBtn(){const b=$('waitInst');b.hidden=!me.inst;if(me.inst)b.textContent='הכלי שלי: '+instHe(me.inst)+' · החלפה'}
+$('waitInst').onclick=e=>{e.stopPropagation();$('nm').value=me.name;me.inst='';LS.s('mnl_inst','');$('pick').hidden=false;$('wait').hidden=true};
+// ----- full screen from the first touch (a browser never allows it before one) -----
+let fsDone=false;function goFs(){if(fsDone)return;fsDone=true;try{const d=document.documentElement;if(!document.fullscreenElement&&!document.webkitFullscreenElement){const f=d.requestFullscreen||d.webkitRequestFullscreen;if(f){const r=f.call(d,{navigationUI:'hide'});if(r&&r.catch)r.catch(()=>{})}}}catch(e){}}
+document.addEventListener('pointerup',goFs,true);
 // ----- touch -----
 let down=null;const stage=$('stage');
 stage.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,t:Date.now()}});
