@@ -27,6 +27,7 @@ jobs:
           cp index.html sw.js manifest.webmanifest *.png $W/app/
           cp -r vendor $W/app/vendor
           cp -r player $W/player
+          cp -r join $W/join
       - name: Build
         working-directory: android
         run: gradle --no-daemon assembleRelease -PverCode=${{ github.run_number }}

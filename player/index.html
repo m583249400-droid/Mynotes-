@@ -24,7 +24,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 #cue.stop{background:rgba(209,31,60,.96);color:#fff}
 .full{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;background:inherit;background-color:#101319}
 body.light .full{background-color:#eef0f4}
-.full h1{margin:0;font-size:26px}.full p{margin:0;opacity:.7;font-size:17px}#waitInst{margin-top:6px;height:46px;padding:0 20px;border-radius:23px;border:1px solid rgba(128,128,128,.45);background:transparent;color:inherit;font:600 16px system-ui;cursor:pointer}#waitInst[hidden]{display:none}
+.full h1{margin:0;font-size:26px}.full p{margin:0;opacity:.7;font-size:17px}#waitInst{margin-top:6px;height:46px;padding:0 20px;border-radius:23px;border:1px solid rgba(128,128,128,.45);background:transparent;color:inherit;font:600 16px system-ui;cursor:pointer}.rsc{margin:6px 8px 0;height:42px;padding:0 18px;border-radius:21px;border:0;background:#f0a23a;color:#1a1204;font:700 15px system-ui;cursor:pointer}.rsc[hidden]{display:none}#waitInst[hidden]{display:none}
 .logo{font-weight:800;font-size:30px;letter-spacing:.5px}.logo small{display:block;font-weight:500;font-size:13px;opacity:.6;letter-spacing:2px;margin-top:2px}
 #insts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;width:min(760px,94vw)}
 #insts button{background:#1c212c;border:1px solid #2c3444;border-radius:16px;padding:20px 10px;font-size:21px;font-weight:700}
@@ -53,10 +53,10 @@ body.light #q{background:#f5f6f9;border-color:#d5d9e2}
 <body>
 <div id="stage"><div id="view"></div></div>
 <div id="top" class="off"><div id="dot"></div><b id="ttl"></b><span class="key" id="key" hidden></span><span class="sp"></span><span id="pgs"></span><span id="who" style="opacity:.7;font-size:14px"></span></div>
-<div id="lost" hidden>אין חיבור</div>
+<div id="lost" hidden>אין חיבור<button class="rsc" id="rescan2" hidden>חיפוש המנצח מחדש</button></div>
 <div id="ban" hidden></div>
 <div id="cue" hidden></div>
-<div id="wait" class="full"><div class="logo">MyNotes Live<small>MENDY BRANDWIN PRODUCTION</small></div><p id="waitMsg">ממתין למנצח…</p><button id="waitInst" hidden></button></div>
+<div id="wait" class="full"><div class="logo">MyNotes Live<small>MENDY BRANDWIN PRODUCTION</small></div><p id="waitMsg">ממתין למנצח…</p><button id="waitInst" hidden></button><button id="rescan" class="rsc" hidden>חיפוש המנצח מחדש</button></div>
 <div id="pick" class="full" hidden><div class="logo">MyNotes Live<small>MENDY BRANDWIN PRODUCTION</small></div><h1>על איזה כלי אתה מנגן?</h1><input id="nm" placeholder="השם שלך (לא חובה)" maxlength="24" autocomplete="off"><div id="insts"></div></div>
 <div id="menu" hidden><div id="sheet"><div id="acts"></div><input id="q" placeholder="חיפוש שיר…" autocomplete="off" hidden><div id="list"></div></div></div>
 <script>// shared by the leader screen and the musician page
@@ -181,6 +181,8 @@ G.SheetView=SheetView;
 const $=id=>document.getElementById(id),{INSTS,instHe,partFor,songKey,esc}=MNC;
 const LS={g(k){try{return localStorage.getItem(k)}catch(e){return null}},s(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 let me={inst:LS.g('mnl_inst')||'',name:LS.g('mnl_name')||''},myId=0;
+// opened from the MyNotes app on a musician's tablet: the app already knows the instrument
+const APP=!!(window.MNHost&&typeof MNHost.home==='function');{const u=new URLSearchParams(location.search),ui=u.get('inst');if(ui&&INSTS.some(i=>i.id===ui)){me.inst=ui;LS.s('mnl_inst',ui)}const un=u.get('name');if(un!=null){me.name=un;LS.s('mnl_name',un)}}
 let lib={songs:{}},libRev=-1,st=null,mine=null,shown={id:null,key:null,b:null},ws=null,lastPong=0,topT=0,cueT=0;
 const blobs=new Map();
 pdfjsLib.GlobalWorkerOptions.workerSrc='pdf.worker.min.js';
@@ -191,7 +193,12 @@ view.setFit(LS.g('mnl_fit')==='width'?'width':'page');
 function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
 function hello(){send({t:'hello',inst:me.inst,name:me.name})}
 function report(){if(!shown.id)return;clearTimeout(report.t);report.t=setTimeout(()=>send({t:'pos',song:shown.id,page:view.page,pages:view.n}),150)}
-function online(on){$('dot').classList.toggle('on',on);$('lost').hidden=on||!st}
+let offSince=0;
+function online(on){$('dot').classList.toggle('on',on);$('lost').hidden=on||!st;if(on)offSince=0;else if(!offSince)offSince=Date.now();rsc()}
+// in the app: when the leader cannot be reached for a while (another network, a new address), offer to look for him again
+function rsc(){const show=APP&&offSince&&Date.now()-offSince>12000;$('rescan').hidden=!show;$('rescan2').hidden=!show}
+setInterval(rsc,2000);document.querySelectorAll('.rsc').forEach(b=>b.onclick=e=>{e.stopPropagation();try{MNHost.home('')}catch(_){}});
+if(APP)window.MNBack=()=>{if(!$('menu').hidden)closeMenu();else if($('pick').hidden)openMenu()};
 function connect(){try{ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws')}catch(e){setTimeout(connect,2000);return}
  const w=ws;w.onopen=()=>{lastPong=Date.now();online(true);if(me.inst)hello();loadLib()};
  w.onclose=()=>{if(ws!==w)return;online(false);setTimeout(connect,1500)};w.onerror=()=>{try{w.close()}catch(e){}};
@@ -236,7 +243,7 @@ function flashTop(ms){$('top').classList.remove('off');clearTimeout(topT);topT=s
 function cue(txt,kind){const c=$('cue');c.textContent=txt||'';c.className=kind==='stop'?'stop':'';c.hidden=!txt;clearTimeout(cueT);if(txt)cueT=setTimeout(()=>c.hidden=true,2600)}
 
 // ----- instrument -----
-function setInst(id,quiet){me.inst=id;LS.s('mnl_inst',id);me.name=$('nm').value.trim()||me.name;LS.s('mnl_name',me.name);$('pick').hidden=true;shown={id:null};hello();refresh();if(!quiet)awake()}
+function setInst(id,quiet){me.inst=id;LS.s('mnl_inst',id);if(APP){try{MNHost.setPref('inst',id)}catch(e){}}me.name=$('nm').value.trim()||me.name;LS.s('mnl_name',me.name);$('pick').hidden=true;shown={id:null};hello();refresh();if(!quiet)awake()}
 $('insts').innerHTML=INSTS.filter(i=>i.id!=='gen').map(i=>'<button data-i="'+i.id+'">'+esc(i.he)+'</button>').join('');$('nm').value=me.name;
 $('insts').onclick=e=>{const b=e.target.closest('button');if(b)setInst(b.dataset.i)};
 
@@ -262,7 +269,7 @@ addEventListener('keydown',e=>{if(!$('menu').hidden||!$('pick').hidden)return;co
 
 // ----- menu -----
 function openMenu(){const free=st&&st.mode==='free';$('menu').hidden=false;$('top').classList.remove('off');
- $('acts').innerHTML='<button data-a="fit">'+(view.fit==='page'?'רוחב מלא (גלילה)':'עמוד שלם')+'</button><button data-a="fs">מסך מלא</button><button data-a="inst">כלי: '+esc(instHe(me.inst))+'</button>'+(mine&&st&&st.cur?'<button data-a="back">חזרה לשיר של המנצח</button>':'')+'<button data-a="x">סגור</button>';
+ $('acts').innerHTML='<button data-a="fit">'+(view.fit==='page'?'רוחב מלא (גלילה)':'עמוד שלם')+'</button><button data-a="fs">מסך מלא</button><button data-a="inst">כלי: '+esc(instHe(me.inst))+'</button>'+(APP?'<button data-a="dev">הגדרות המכשיר</button>':'')+(mine&&st&&st.cur?'<button data-a="back">חזרה לשיר של המנצח</button>':'')+'<button data-a="x">סגור</button>';
  $('q').hidden=!free||(st.ps&&st.ps.search===false);$('q').value='';list('')}
 function closeMenu(){$('menu').hidden=true;flashTop(1500)}
 function list(q){const L=$('list'),t=target();let h='';q=q.trim().toLowerCase();const free=st&&st.mode==='free';
@@ -278,6 +285,7 @@ $('acts').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.
  else if(a==='fs'){const d=document.documentElement;try{document.fullscreenElement?document.exitFullscreen():(d.requestFullscreen||d.webkitRequestFullscreen).call(d)}catch(_){}closeMenu()}
  else if(a==='inst'){closeMenu();$('pick').hidden=false}
  else if(a==='back'){mine=null;closeMenu();refresh()}
+ else if(a==='dev'){try{MNHost.home('settings')}catch(_){}}
  else closeMenu()};
 $('pick').hidden=!!me.inst;connect();
 })();

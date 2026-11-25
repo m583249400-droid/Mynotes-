@@ -25,6 +25,16 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import java.io.BufferedInputStream;
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -39,7 +49,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
-/** MyNotes on the leader's tablet: shows the app and runs the small server the musicians connect to. */
+/** MyNotes on a tablet. As the leader it shows the app and runs the small server the musicians connect to;
+ *  as a musician it finds the leader on the network and shows his page full screen. */
 public class MainActivity extends Activity {
     private static final int REQ_FILE = 11, REQ_SAVE = 12, REQ_OPEN = 13, REQ_MIC = 14;
     private WebView web;
@@ -48,6 +59,9 @@ public class MainActivity extends Activity {
     private File www, data;
     private ValueCallback<Uri[]> fileCb;
     private PermissionRequest micReq;
+    private SharedPreferences sp;
+    private volatile String cur = "";
+    static final String JOIN = "file:///android_asset/www/join/index.html";
 
     @Override
     protected void onCreate(Bundle b) {
@@ -56,9 +70,12 @@ public class MainActivity extends Activity {
         www = new File(getFilesDir(), "www");
         data = new File(getFilesDir(), "live");
         data.mkdirs();
+        sp = getSharedPreferences("mn", MODE_PRIVATE);
+        // a tablet that already holds a library was the leader before this choice existed
+        if (sp.getString("role", "").isEmpty() && new File(new File(data, "kv"), "library").isFile()) sp.edit().putString("role", "leader").apply();
         try {
             unpackSite();
-            startServer();
+            if (!"player".equals(sp.getString("role", ""))) startServer();
         } catch (Exception e) {
             Toast.makeText(this, "MyNotes: " + e, Toast.LENGTH_LONG).show();
         }
@@ -76,12 +93,15 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, String url) {
-                if (url.startsWith("http://127.0.0.1:" + port + "/")) return false;
+                if (url.startsWith("http://127.0.0.1:" + port + "/") || url.startsWith(JOIN) || lanPage(url)) return false;
                 try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception e) { /* nothing to open it */ }
                 return true;
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onProgressChanged(WebView v, int p) { String u = v.getUrl(); if (u != null) cur = u; }
+
             @Override
             public void onPermissionRequest(final PermissionRequest r) {
                 boolean audio = false, midi = false;
@@ -117,8 +137,86 @@ public class MainActivity extends Activity {
                 return true;
             }
         });
-        if (b == null) web.loadUrl("http://127.0.0.1:" + port + "/app/");
+        if (b == null) web.loadUrl(start());
         else web.restoreState(b);
+    }
+
+    private String start() {
+        String r = sp.getString("role", "");
+        if ("leader".equals(r)) return "http://127.0.0.1:" + port + "/app/";
+        return r.isEmpty() ? JOIN + "?first=1" : JOIN;
+    }
+
+    /** the leader's page on the local network: a private address, any of the leader's ports */
+    static boolean lanPage(String url) {
+        try {
+            Uri u = Uri.parse(url);
+            String h = u.getHost();
+            if (!"http".equals(u.getScheme()) || h == null) return false;
+            if (h.startsWith("10.") || h.startsWith("192.168.")) return true;
+            if (h.startsWith("172.")) { int b = Integer.parseInt(h.split("\\.")[1]); return b >= 16 && b <= 31; }
+        } catch (Exception e) { /* not one */ }
+        return false;
+    }
+
+    /** the leader's own pages may use everything; a page from another tablet only the harmless calls */
+    boolean local() { return cur.startsWith("http://127.0.0.1:") || cur.startsWith(JOIN); }
+
+    private void load(final String url) { runOnUiThread(new Runnable() { public void run() { web.loadUrl(url); } }); }
+
+    /** look for a leader on every network this tablet is on: the last one first, then each address of the subnet */
+    String scan(String last) {
+        if (last != null && !last.isEmpty()) { String r = probe(last); if (r != null) return r; }
+        List<String> mine = LiveServer.lanAddresses();
+        for (int port : new int[]{8080, 8181, 8282, 8383}) {
+            final List<String> hits = Collections.synchronizedList(new ArrayList<String>());
+            ExecutorService ex = Executors.newFixedThreadPool(64);
+            for (String ip : mine) {
+                int d = ip.lastIndexOf('.');
+                if (d < 0) continue;
+                String pre = ip.substring(0, d + 1);
+                for (int i = 1; i < 255; i++) {
+                    final String host = pre + i;
+                    if (host.equals(ip)) continue;
+                    final String hp = host + ":" + port;
+                    ex.submit(new Runnable() { public void run() { String r = probe(hp); if (r != null) hits.add(r); } });
+                }
+            }
+            ex.shutdown();
+            try { ex.awaitTermination(12, TimeUnit.SECONDS); } catch (InterruptedException e) { /* go on */ }
+            ex.shutdownNow();
+            if (!hits.isEmpty()) {
+                StringBuilder b = new StringBuilder();
+                for (String h : hits) b.append(b.length() > 0 ? "," : "").append(h);
+                return b.toString();
+            }
+        }
+        return "";
+    }
+
+    /** "ip:port|players" when a MyNotes leader answers there */
+    static String probe(String hp) {
+        try {
+            int c = hp.lastIndexOf(':');
+            Socket so = new Socket();
+            so.connect(new InetSocketAddress(hp.substring(0, c), Integer.parseInt(hp.substring(c + 1))), 400);
+            so.close();
+            HttpURLConnection h = (HttpURLConnection) new URL("http://" + hp + "/info").openConnection();
+            h.setConnectTimeout(1000);
+            h.setReadTimeout(1500);
+            InputStream in = h.getInputStream();
+            byte[] buf = new byte[2048];
+            int n = in.read(buf);
+            in.close();
+            h.disconnect();
+            String t = n > 0 ? new String(buf, 0, n, "UTF-8") : "";
+            if (!t.contains("\"mynotes-live\"")) return null;
+            int i = t.indexOf("\"players\":"), pl = 0;
+            if (i >= 0) { i += 10; int j = i; while (j < t.length() && Character.isDigit(t.charAt(j))) j++; try { pl = Integer.parseInt(t.substring(i, j)); } catch (Exception e) { /* none */ } }
+            return hp + "|" + pl;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private void startServer() throws IOException {
@@ -188,9 +286,52 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public int port() { return port; }
 
+        /** leader or musician; the choice is kept and the right screen opens */
+        @JavascriptInterface
+        public String role() { return sp.getString("role", ""); }
+
+        @JavascriptInterface
+        public void setRole(final String r) {
+            if (!"leader".equals(r) && !"player".equals(r)) return;
+            sp.edit().putString("role", r).apply();
+            runOnUiThread(new Runnable() {
+                public void run() {
+                    if ("leader".equals(r)) {
+                        try { if (server == null) startServer(); } catch (Exception e) { toast("MyNotes: " + e); }
+                        web.loadUrl("http://127.0.0.1:" + port + "/app/");
+                    } else {
+                        if (server != null) { server.stop(); server = null; }
+                        web.loadUrl(JOIN + "?settings=1");
+                    }
+                }
+            });
+        }
+
+        /** the musician's own settings: instrument, name, the last leader */
+        @JavascriptInterface
+        public String pref(String k) { return "inst".equals(k) || "name".equals(k) || "leader".equals(k) || "role".equals(k) ? sp.getString(k, "") : ""; }
+
+        @JavascriptInterface
+        public void setPref(String k, String v) { if ("inst".equals(k) || "name".equals(k) || "leader".equals(k)) sp.edit().putString(k, v == null ? "" : v).apply(); }
+
+        @JavascriptInterface
+        public void findLeader(final String last) {
+            new Thread(new Runnable() {
+                public void run() {
+                    final String r = scan(last).replaceAll("[^0-9.:|,]", "");
+                    js("window.MNJoin&&MNJoin.found('" + r + "')");
+                }
+            }).start();
+        }
+
+        /** back to the musician's settings page (from the leader's page on another tablet) */
+        @JavascriptInterface
+        public void home(String why) { load(JOIN + ("settings".equals(why) ? "?settings=1" : "")); }
+
         /** one zip with the whole Live library; the system picker lets the user put it in Drive */
         @JavascriptInterface
         public void exportBackup() {
+            if (!local()) return;
             Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
             i.addCategory(Intent.CATEGORY_OPENABLE);
             i.setType("application/zip");
@@ -200,6 +341,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void importBackup() {
+            if (!local()) return;
             Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             i.addCategory(Intent.CATEGORY_OPENABLE);
             i.setType("*/*");
@@ -209,6 +351,7 @@ public class MainActivity extends Activity {
         /** a file the app made (PDF, MIDI, backup) goes to the Downloads folder */
         @JavascriptInterface
         public void saveFile(String name, String b64, String mime) {
+            if (!local()) return;
             try {
                 byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
                 name = name.replaceAll("[\\\\/:*?\"<>|]", "_");

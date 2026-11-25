@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MyNotes</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0d0f13;color:#eef0f4;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+body{display:flex;align-items:center;justify-content:center;padding:24px}
+.box{width:min(560px,100%);display:flex;flex-direction:column;align-items:center;gap:22px;text-align:center}
+.brand{display:flex;flex-direction:column;align-items:center;gap:6px}
+.brand svg{width:64px;height:64px}
+.brand b{font-size:26px;letter-spacing:.2px}
+.brand small{font-size:11.5px;letter-spacing:2.5px;color:#8b93a7}
+h1{margin:0;font-size:22px;font-weight:700}
+p{margin:0;color:#a6adbd}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:100%}
+.tile{display:flex;flex-direction:column;align-items:center;gap:8px;padding:24px 16px;border-radius:18px;border:1px solid #2a3040;background:#161a22;color:inherit;font:inherit;cursor:pointer}
+.tile b{font-size:21px}.tile span{font-size:14px;color:#8b93a7}
+.tile:active,.tile:hover{border-color:#f0a23a}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;width:100%}
+.grid button{height:56px;border-radius:14px;border:1px solid #2a3040;background:#161a22;color:inherit;font:600 17px system-ui;cursor:pointer}
+.grid button.on{background:#f0a23a;border-color:#f0a23a;color:#1a1204}
+input{width:100%;height:50px;border-radius:12px;border:1px solid #2a3040;background:#161a22;color:inherit;font:16px system-ui;padding:0 14px;text-align:center}
+input:focus{outline:none;border-color:#f0a23a}
+.bt{height:52px;padding:0 26px;border-radius:26px;border:0;background:#f0a23a;color:#1a1204;font:700 17px system-ui;cursor:pointer}
+.bt.gh{background:transparent;border:1px solid #2a3040;color:#eef0f4;font-weight:600}
+.bt[disabled]{opacity:.35}
+.row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;width:100%}
+.list{display:flex;flex-direction:column;gap:8px;width:100%}
+.list button{display:flex;justify-content:space-between;align-items:center;height:58px;padding:0 18px;border-radius:14px;border:1px solid #2a3040;background:#161a22;color:inherit;font:600 17px system-ui;cursor:pointer;direction:ltr}
+.list button span{color:#8b93a7;font-size:14px;direction:rtl}
+.spin{width:38px;height:38px;border-radius:50%;border:3px solid #2a3040;border-top-color:#f0a23a;animation:sp 0.9s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.note{font-size:14px;color:#8b93a7;line-height:1.7}
+.link{background:none;border:0;color:#8b93a7;font:14px system-ui;text-decoration:underline;cursor:pointer;padding:6px}
+[hidden]{display:none!important}
+@media(max-width:420px){.tiles{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="box">
+ <div class="brand"><svg viewBox="0 0 64 64" fill="none" stroke="#f0a23a" stroke-width="2.4" stroke-linecap="round"><path d="M8 20h48M8 28h48M8 36h48M8 44h48M8 52h48" opacity=".35"/><ellipse cx="24" cy="46" rx="6.5" ry="4.8" transform="rotate(-22 24 46)" fill="#f0a23a" stroke="none"/><path d="M30 44V14l16-4v26"/><ellipse cx="40" cy="38" rx="6.5" ry="4.8" transform="rotate(-22 40 38)" fill="#f0a23a" stroke="none"/></svg><b>MyNotes</b><small>MENDY BRANDWIN PRODUCTION</small></div>
+
+ <section id="s-role" hidden>
+  <h1>המכשיר הזה הוא של</h1>
+  <div class="tiles" style="margin-top:18px">
+   <button class="tile" data-role="leader"><b>מנצח</b><span>הספרייה, הכתיבה, ומעביר שירים לכולם</span></button>
+   <button class="tile" data-role="player"><b>נגן</b><span>מתחבר למנצח ורואה את התפקיד שלו</span></button>
+  </div>
+  <p class="note" style="margin-top:14px">אפשר לשנות את זה אחר כך בהגדרות.</p>
+ </section>
+
+ <section id="s-inst" hidden style="width:100%;display:flex;flex-direction:column;gap:16px;align-items:center">
+  <h1>על איזה כלי אתה מנגן?</h1>
+  <div class="grid" id="insts"></div>
+  <input id="nm" placeholder="השם שלך (לא חובה)" maxlength="24" autocomplete="off">
+  <div class="row"><button class="bt" id="go" disabled>התחברות למנצח</button></div>
+  <button class="link" id="toLeader">המכשיר הזה הוא של המנצח</button>
+ </section>
+
+ <section id="s-find" hidden style="width:100%;display:flex;flex-direction:column;gap:16px;align-items:center">
+  <div class="spin" id="spin"></div>
+  <h1 id="f-t">מחפש את המנצח ברשת…</h1>
+  <p id="f-p"></p>
+  <div class="list" id="found"></div>
+  <div id="manual" hidden style="width:100%;display:flex;flex-direction:column;gap:12px;align-items:center">
+   <input id="addr" placeholder="כתובת המנצח, למשל 192.168.1.20" inputmode="decimal" autocomplete="off" style="direction:ltr">
+   <div class="row"><button class="bt" id="addrGo">התחברות</button><button class="bt gh" id="again">חיפוש שוב</button></div>
+   <p class="note">הכתובת מופיעה אצל המנצח במסך "חיבור נגנים", מתחת לקוד.<br>שני הטאבלטים צריכים להיות מחוברים לאותה רשת: אותו ראוטר, הנקודה החמה של המנצח, או שיתוף בבלוטוס.</p>
+  </div>
+  <button class="link" id="chInst">החלפת כלי</button>
+ </section>
+</div>
+<script>
+'use strict';
+(function(){
+const H=window.MNHost,$=id=>document.getElementById(id);
+const INSTS=[['piano','פסנתר'],['alto','סקסופון אלט'],['tenor','סקסופון טנור'],['tpt','חצוצרה'],['tbn','טרומבון'],['vln1','כינור 1'],['vln2','כינור 2'],['vla','ויולה'],['vc',"צ'לו"],['gtr','גיטרה']];
+const get=k=>{try{return H?H.pref(k)||'':''}catch(e){return ''}},put=(k,v)=>{try{H&&H.setPref(k,v)}catch(e){}};
+const q=new URLSearchParams(location.search);let inst=get('inst'),busy=false;
+function show(id){['s-role','s-inst','s-find'].forEach(x=>$(x).hidden=x!==id)}
+// ---- who is this tablet ----
+document.querySelectorAll('[data-role]').forEach(b=>b.onclick=()=>{if(b.dataset.role==='leader'){H&&H.setRole('leader');return}put('role','player');H&&H.setRole('player');pickInst()});
+$('toLeader').onclick=()=>{if(confirm('להפוך את המכשיר הזה למנצח? הספרייה והניהול יהיו כאן, והנגנים יתחברו אליו.'))H&&H.setRole('leader')};
+// ---- instrument ----
+function pickInst(){show('s-inst');$('nm').value=get('name');$('insts').innerHTML=INSTS.map(([id,he])=>'<button data-i="'+id+'" class="'+(id===inst?'on':'')+'">'+he+'</button>').join('');$('go').disabled=!inst}
+$('insts').onclick=e=>{const b=e.target.closest('[data-i]');if(!b)return;inst=b.dataset.i;document.querySelectorAll('#insts button').forEach(x=>x.classList.toggle('on',x===b));$('go').disabled=false};
+$('go').onclick=()=>{if(!inst)return;put('inst',inst);put('name',$('nm').value.trim());find()};
+$('chInst').onclick=pickInst;
+// ---- finding the leader ----
+function open(hp){put('leader',hp);const nm=get('name');location.href='http://'+hp+'/player/?inst='+encodeURIComponent(inst)+(nm?'&name='+encodeURIComponent(nm):'')+'&app=1'}
+function find(){if(busy)return;busy=true;show('s-find');$('spin').hidden=false;$('f-t').textContent='מחפש את המנצח ברשת…';$('f-p').textContent='';$('found').innerHTML='';$('manual').hidden=true;
+ if(!H){done('');return}try{H.findLeader(get('leader'))}catch(e){done('')}}
+function done(list){busy=false;$('spin').hidden=true;const a=list?list.split(',').filter(Boolean).map(x=>{const p=x.split('|');return {hp:p[0],n:+p[1]||0}}):[];
+ if(a.length===1){$('f-t').textContent='נמצא. מתחבר…';open(a[0].hp);return}
+ if(a.length>1){$('f-t').textContent='נמצאו כמה מנצחים ברשת';$('f-p').textContent='בחר למי להתחבר';$('found').innerHTML=a.map(x=>'<button data-hp="'+x.hp+'">'+x.hp+'<span>'+x.n+' נגנים מחוברים</span></button>').join('');return}
+ $('f-t').textContent='לא מצאתי את המנצח';$('f-p').textContent='בדוק שהאפליקציה פתוחה אצל המנצח, ושהטאבלט הזה מחובר לאותה רשת.';$('manual').hidden=false;const l=get('leader');if(l)$('addr').value=l.split(':')[0]}
+window.MNJoin={found:done};
+$('found').onclick=e=>{const b=e.target.closest('[data-hp]');if(b)open(b.dataset.hp)};
+$('again').onclick=find;
+$('addrGo').onclick=()=>{let v=$('addr').value.trim().replace(/^https?:\/\//,'').replace(/\/.*$/,'');if(!v)return;if(!/:\d+$/.test(v))v+=':8080';open(v)};
+window.MNBack=()=>{if(!$('s-find').hidden&&!busy){pickInst();return}};
+// ---- start ----
+const role=get('role');
+if(!role||q.has('first'))show('s-role');
+else if(q.has('settings')||!inst)pickInst();
+else find();
+})();
+</script>
+</body>
+</html>
