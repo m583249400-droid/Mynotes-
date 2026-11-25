@@ -69,9 +69,13 @@ function partFor(song,inst,key){if(!song)return null;
  if(song.keys){const K=key&&song.keys[key]?key:(key?null:(song.keys[song.last]?song.last:song.base));const ks=K&&song.keys[K];if(!ks)return {wait:true};
   const pi=ks[inst]?inst:ks.piano?'piano':Object.keys(ks).filter(k=>k[0]!=='_')[0];if(!pi||!ks[pi])return {wait:true};if(pi!==inst&&inst!=='gen'&&!ks._done)return {wait:true};return Object.assign({pi,key:K},ks[pi])}
  const P=song.parts||{};const pi=P[inst]?inst:P.gen?'gen':P.piano?'piano':Object.keys(P)[0];return pi?Object.assign({pi},P[pi]):null}
-// a major key is shown with the minor he plays it from: C -> Am/C
-const RELMIN={C:'Am',G:'Em',D:'Bm',A:'F#m',E:'C#m',B:'G#m','F#':'D#m',F:'Dm',Bb:'Gm',Eb:'Cm',Ab:'Fm',Db:'Bbm',Gb:'Ebm','C#':'A#m'};
-function keyShow(song,k){k=k==null?songKey(song,null):k;if(!song||song.src!=='mn'||!k)return k||'';const n=String(k).replace('♯','#').replace('♭','b');return RELMIN[n]?RELMIN[n]+'/'+k:k}
+// the key he wrote himself in the subtitle of the writing screen ("Am") is the name shown everywhere; moving the key moves that name with it (Am -> Bm)
+const LN={C:0,D:2,E:4,F:5,G:7,A:9,B:11},MJN=['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'],MNN=['Cm','C#m','Dm','Ebm','Em','Fm','F#m','Gm','G#m','Am','Bbm','Bm'];
+const pcK=k=>{const m=/^([A-G])([#b♯♭]?)/.exec(String(k||''));return m?(LN[m[1]]+(m[2]==='#'||m[2]==='♯'?1:m[2]==='b'||m[2]==='♭'?-1:0)+12)%12:null};
+function subKey(sub){const m=/(?:^|[\s(\-–,·|:])([A-Ga-g])(#|b|♯|♭)?([mM](?:in(?:or)?)?|\s+[mM]inor)?(?=$|[\s)\-–,·|:])/.exec(' '+String(sub||'')+' ');if(m){const L=m[1].toUpperCase(),acc=m[2]==='#'||m[2]==='♯'?'#':m[2]?'b':'',mi=!!m[3];if(L===m[1]||mi)return L+acc+(mi?'m':'')}
+ const h=/(דו|רה|מי|פה|סול|לה|סי)(?:\s+(דיאז|במול))?\s+(מינור|מז'ור|מזור|מג'ור)/.exec(String(sub||''));if(!h)return '';const L={'דו':'C','רה':'D','מי':'E','פה':'F','סול':'G','לה':'A','סי':'B'}[h[1]];return L+(h[2]==='דיאז'?'#':h[2]==='במול'?'b':'')+(h[3]==='מינור'?'m':'')}
+function keyShow(song,k){k=k==null?songKey(song,null):k;if(!song||song.src!=='mn'||!k||!song.subK||song.wk==null)return k||'';const p=pcK(k),q=pcK(song.subK);if(p==null||q==null)return k;
+ const n=((q+p-song.wk)%12+12)%12;return /m$/.test(song.subK)?MNN[n]:MJN[n]}
 function songKey(song,key){if(!song)return '';if(song.keys)return key||song.last||song.base||'';return song.k||''}
 const KEYHE={C:'דו',D:'רה',E:'מי',F:'פה',G:'סול',A:'לה',B:'סי'};
 // the key at the end of an old file name: "אב הרחמים Am" / "אחת שאלתי - לה מינור"
@@ -81,7 +85,7 @@ function splitKey(title){let m=/^(.*?)[\s\-–]+([A-G](?:#|b)?m?)\s*$/.exec(titl
 // what is written or drawn on a song reaches every part: tied to a bar where the part knows its bars, otherwise at the same place on the page
 function notesFor(song,part){return (song.notes||[]).filter(n=>n.kind!=='banner'&&(n.bar==null||!!part.m))}
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-G.MNC={INSTS,instHe,partFor,songKey,keyShow,splitKey,esc,notesFor};
+G.MNC={INSTS,instHe,partFor,songKey,keyShow,subKey,splitKey,esc,notesFor};
 })(typeof window!=='undefined'?window:this);
 </script>
 <script>// SheetView: shows one part (PDF or image) page by page. Shared by the musician page and the leader screen.
