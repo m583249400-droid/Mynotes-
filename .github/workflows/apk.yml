@@ -11,6 +11,8 @@ concurrency:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      HAS_UPLOAD: ${{ secrets.UPLOAD_KEYSTORE_B64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -19,7 +21,7 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.7
+          gradle-version: 8.13
       - name: Put the web app inside the tablet app
         run: |
           W=android/app/src/main/assets/www
@@ -33,15 +35,29 @@ jobs:
         run: gradle --no-daemon assembleRelease -PverCode=${{ github.run_number }}
       - name: Name the file
         run: cp android/app/build/outputs/apk/release/app-release.apk MyNotes.apk
+      - name: Build the bundle for Google Play
+        if: env.HAS_UPLOAD == 'true'
+        env:
+          UPLOAD_KEYSTORE_B64: ${{ secrets.UPLOAD_KEYSTORE_B64 }}
+          UPLOAD_PW: ${{ secrets.UPLOAD_PW }}
+        run: |
+          echo "$UPLOAD_KEYSTORE_B64" | base64 -d > $RUNNER_TEMP/upload.jks
+          cd android && gradle --no-daemon bundleRelease -PverCode=${{ github.run_number }} -PuploadKs=$RUNNER_TEMP/upload.jks -PuploadPw="$UPLOAD_PW"
+          cp app/build/outputs/bundle/release/app-release.aab ../MyNotes.aab
+          rm -f $RUNNER_TEMP/upload.jks
       - uses: actions/upload-artifact@v4
         with:
           name: MyNotes-apk
-          path: MyNotes.apk
+          path: |
+            MyNotes.apk
+            MyNotes.aab
       - name: Publish the download
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk
           name: MyNotes for the tablet (build ${{ github.run_number }})
           body: Download MyNotes.apk on the tablet and install it. It installs over the previous version and keeps the library.
-          files: MyNotes.apk
+          files: |
+            MyNotes.apk
+            MyNotes.aab
           make_latest: true

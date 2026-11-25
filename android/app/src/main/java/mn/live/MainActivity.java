@@ -14,6 +14,10 @@ import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.view.View;
+import android.view.WindowInsets;
+import android.widget.FrameLayout;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
@@ -80,7 +84,25 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "MyNotes: " + e, Toast.LENGTH_LONG).show();
         }
         web = new WebView(this);
-        setContentView(web);
+        // newer Android draws the app under the system bars and no longer shrinks it for the keyboard:
+        // the frame makes room for the keyboard itself, so a search box or a text field is never hidden
+        final FrameLayout frame = new FrameLayout(this);
+        frame.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(frame);
+        if (Build.VERSION.SDK_INT >= 30) {
+            frame.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                public WindowInsets onApplyWindowInsets(View v, WindowInsets ins) {
+                    v.setPadding(0, 0, 0, ins.getInsets(WindowInsets.Type.ime()).bottom);
+                    return ins;
+                }
+            });
+        }
+        // the back gesture on Android 13 and later
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, new OnBackInvokedCallback() {
+                public void onBackInvoked() { js("window.MNBack&&window.MNBack()"); }
+            });
+        }
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
