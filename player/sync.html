@@ -1,0 +1,13 @@
+<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MyNotes · סנכרון</title>
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#101319;color:#eef1f7;font:18px system-ui,Arial,sans-serif;text-align:center;padding:24px;box-sizing:border-box}b{display:block;font-size:24px;margin-bottom:10px}p{opacity:.75;margin:6px 0}</style></head>
+<body><div><b id="t">MyNotes · סנכרון</b><p id="p"></p></div>
+<script>
+// the tablet's own small page: a secure phone page hands it the songs, and it passes them to the tablet next to it
+(()=>{const q=new URLSearchParams(location.search),k=q.get('k')||'',O=window.opener,$=id=>document.getElementById(id);
+ if(!O){$('t').textContent='כמעט';$('p').innerHTML='את השירים שולחים מתוך MyNotes בטלפון:<br>סנכרון ← שליחת השירים מהמכשיר הזה<br>ושם סורקים את הקוד.';return}
+ $('p').textContent='מעביר שירים לטאבלט… לא לסגור את החלון';let got=false;const hi=setInterval(()=>{if(got)return clearInterval(hi);try{O.postMessage({mn:'sync',t:'ready'},'*')}catch(e){}},300);let n=0;
+ addEventListener('message',async e=>{if(e.source!==O||!e.data||e.data.mn!=='sync')return;got=true;const d=e.data,r=o=>O.postMessage(Object.assign({mn:'sync',id:d.id},o),'*');
+  try{if(d.t==='idx'){const x=await fetch('/in/idx?k='+encodeURIComponent(k),{cache:'no-store'});if(x.status===403)return r({ok:false,err:'code'});if(!x.ok)return r({ok:false,err:'net'});r({ok:true,idx:await x.json()})}
+   else if(d.t==='put'){const x=await fetch('/in/s/'+d.n+'?k='+encodeURIComponent(k),{method:'PUT',body:JSON.stringify(d.o)});if(!x.ok)return r({ok:false,err:'put '+x.status});n++;$('p').textContent='הועברו '+n+' שירים…';r({ok:true})}
+   else if(d.t==='bye'){$('t').textContent='הסתיים';$('p').textContent='אפשר לסגור את החלון ולחזור ל-MyNotes';setTimeout(()=>{try{window.close()}catch(e){}},600)}}catch(er){r({ok:false,err:String(er)})}})})();
+</script></body></html>

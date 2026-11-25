@@ -31,6 +31,9 @@ public class LiveServer extends NanoWSD {
     private final Set<Sock> leaders = Collections.newSetFromMap(new ConcurrentHashMap<Sock, Boolean>());
     private final AtomicInteger ids = new AtomicInteger(1);
     private volatile String state = null;
+    /** songs sent from the phone wait here until the leader's page takes them; open only while the leader shows the code */
+    private final File inbox;
+    private volatile String syncTok = null;
     private Thread reaper;
 
     public LiveServer(File wwwDir, File dataDir, int port) {
@@ -39,6 +42,7 @@ public class LiveServer extends NanoWSD {
         this.www = wwwDir;
         this.blobs = new File(dataDir, "blobs");
         this.kv = new File(dataDir, "kv");
+        this.inbox = new File(dataDir, "inbox");
         blobs.mkdirs();
         kv.mkdirs();
     }
@@ -107,6 +111,45 @@ public class LiveServer extends NanoWSD {
         Response r = Response.newFixedLengthResponse(Status.OK, mime(f.getName()), new FileInputStream(f), f.length());
         r.addHeader("Cache-Control", cache);
         return r;
+    }
+
+    static Response cors(Response r) {
+        r.setUseGzip(false);
+        r.addHeader("Access-Control-Allow-Origin", "*");
+        r.addHeader("Access-Control-Allow-Methods", "GET, PUT, DELETE, OPTIONS");
+        r.addHeader("Access-Control-Allow-Headers", "content-type");
+        r.addHeader("Access-Control-Allow-Private-Network", "true");
+        return r;
+    }
+
+    /** the phone's songs: tok (leader opens/closes), idx (what the leader has), s/<file> (one song each), list */
+    Response inbox(IHTTPSession s, String what, Method m, boolean me) throws IOException {
+        if (m == Method.OPTIONS) return text(Status.OK, "");
+        List<String> kl = s.getParameters().get("k");
+        String k = kl == null || kl.isEmpty() ? null : kl.get(0);
+        boolean ok = me || (syncTok != null && syncTok.equals(k));
+        if (what.equals("tok")) {
+            if (!me) return text(Status.FORBIDDEN, "leader only");
+            if (m == Method.DELETE) { syncTok = null; return text(Status.OK, "ok"); }
+            if (k == null || k.length() < 4) return text(Status.BAD_REQUEST, "code");
+            syncTok = k; return text(Status.OK, "ok");
+        }
+        if (!ok) return text(Status.FORBIDDEN, "code");
+        if (what.equals("list")) {
+            if (!me) return text(Status.FORBIDDEN, "leader only");
+            File d = new File(inbox, "s");
+            String[] names = d.list();
+            StringBuilder sb = new StringBuilder("[");
+            if (names != null) { Arrays.sort(names); int n = 0; for (String x : names) { if (x.contains(".part")) continue; sb.append(n++ > 0 ? "," : "").append('"').append(esc(x)).append('"'); } }
+            return json(sb.append(']').toString());
+        }
+        String key = what.equals("idx") ? "idx.json" : what.startsWith("s/") ? safe(what) : null;
+        if (key == null || key.indexOf('/', 2) >= 0) return text(Status.BAD_REQUEST, "bad key");
+        File f = new File(inbox, key);
+        if (m == Method.GET || m == Method.HEAD) { if (!me && !key.equals("idx.json")) return text(Status.FORBIDDEN, "leader only"); return file(f, "no-store"); }
+        if (m == Method.PUT) { if (key.equals("idx.json") && !me) return text(Status.FORBIDDEN, "leader only"); readBody(s, f); return text(Status.OK, "ok"); }
+        if (m == Method.DELETE) { if (!me) return text(Status.FORBIDDEN, "leader only"); f.delete(); return text(Status.OK, "ok"); }
+        return text(Status.METHOD_NOT_ALLOWED, "method");
     }
 
     static void readBody(IHTTPSession s, File dst) throws IOException {
@@ -187,11 +230,12 @@ public class LiveServer extends NanoWSD {
             Method m = s.getMethod();
             boolean me = loopback(s);
             if (uri.equals("/info")) {
-                StringBuilder sb = new StringBuilder("{\"app\":\"mynotes-live\",\"v\":1,\"port\":" + port + ",\"leader\":" + me + ",\"players\":" + players.size() + ",\"ips\":[");
+                StringBuilder sb = new StringBuilder("{\"app\":\"mynotes-live\",\"v\":1,\"port\":" + port + ",\"leader\":" + me + ",\"players\":" + players.size() + ",\"inbox\":" + (syncTok != null) + ",\"ips\":[");
                 List<String> ips = lanAddresses();
                 for (int i = 0; i < ips.size(); i++) sb.append(i > 0 ? "," : "").append('"').append(esc(ips.get(i))).append('"');
-                return json(sb.append("]}").toString());
+                return cors(json(sb.append("]}").toString()));
             }
+            if (uri.startsWith("/in/")) return cors(inbox(s, uri.substring(4), m, me));
             if (uri.startsWith("/b/") || uri.startsWith("/kv/")) {
                 boolean isKv = uri.startsWith("/kv/");
                 String raw = uri.substring(isKv ? 4 : 3);
