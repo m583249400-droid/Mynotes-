@@ -63,6 +63,7 @@ public class MainActivity extends Activity {
     private File www, data;
     private ValueCallback<Uri[]> fileCb;
     private PermissionRequest micReq;
+    private String[] micWeb;
     private SharedPreferences sp;
     private volatile String cur = "";
     static final String JOIN = "file:///android_asset/www/join/index.html";
@@ -126,20 +127,24 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPermissionRequest(final PermissionRequest r) {
-                boolean audio = false, midi = false;
+                boolean audio = false, midi = false, video = false;
                 for (String x : r.getResources()) {
                     if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(x)) audio = true;
                     if (PermissionRequest.RESOURCE_MIDI_SYSEX.equals(x)) midi = true;
+                    if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(x)) video = true;
                 }
                 // a USB piano keyboard: nothing to ask the user, the tablet itself decides
-                if (midi && !audio) { r.grant(new String[]{PermissionRequest.RESOURCE_MIDI_SYSEX}); return; }
-                if (!audio) { r.deny(); return; }
-                if (Build.VERSION.SDK_INT < 23 || checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                    r.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
-                } else {
-                    micReq = r;
-                    requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
-                }
+                if (midi && !audio && !video) { r.grant(new String[]{PermissionRequest.RESOURCE_MIDI_SYSEX}); return; }
+                if (!audio && !video) { r.deny(); return; }
+                // the microphone (chords by voice) and the camera (scanning a code): Android asks the user once
+                List<String> web = new ArrayList<>(), need = new ArrayList<>();
+                if (audio) { web.add(PermissionRequest.RESOURCE_AUDIO_CAPTURE); if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) need.add(Manifest.permission.RECORD_AUDIO); }
+                if (video) { web.add(PermissionRequest.RESOURCE_VIDEO_CAPTURE); if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) need.add(Manifest.permission.CAMERA); }
+                if (need.isEmpty()) { r.grant(web.toArray(new String[0])); return; }
+                if (micReq != null) micReq.deny();
+                micReq = r;
+                micWeb = web.toArray(new String[0]);
+                requestPermissions(need.toArray(new String[0]), REQ_MIC);
             }
 
             @Override
@@ -507,7 +512,9 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int req, String[] p, int[] r) {
         if (req == REQ_MIC && micReq != null) {
-            if (r.length > 0 && r[0] == PackageManager.PERMISSION_GRANTED) micReq.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+            boolean all = r.length > 0;
+            for (int x : r) if (x != PackageManager.PERMISSION_GRANTED) all = false;
+            if (all) micReq.grant(micWeb);
             else micReq.deny();
             micReq = null;
         }

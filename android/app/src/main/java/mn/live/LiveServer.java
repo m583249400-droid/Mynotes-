@@ -135,6 +135,24 @@ public class LiveServer extends NanoWSD {
             syncTok = k; return text(Status.OK, "ok");
         }
         if (!ok) return text(Status.FORBIDDEN, "code");
+        // the whole Live library can travel too: the sender reads what is here and writes sheet files straight into the store
+        if (what.equals("bl")) {
+            StringBuilder sb = new StringBuilder("{");
+            list(blobs, blobs, sb);
+            return json(sb.append('}').toString());
+        }
+        if (what.startsWith("kv/")) {
+            String n = what.substring(3);
+            if (!(n.equals("library") || n.equals("lists")) || !(m == Method.GET || m == Method.HEAD)) return text(Status.BAD_REQUEST, "bad key");
+            File f = new File(kv, n);
+            return f.isFile() ? file(f, "no-store") : json("null");
+        }
+        if (what.startsWith("b/")) {
+            String bk = safe(what.substring(2));
+            if (bk == null || !bk.startsWith("p/") || m != Method.PUT) return text(Status.BAD_REQUEST, "bad key");
+            readBody(s, new File(blobs, bk));
+            return text(Status.OK, "ok");
+        }
         if (what.equals("list")) {
             if (!me) return text(Status.FORBIDDEN, "leader only");
             File d = new File(inbox, "s");
@@ -230,7 +248,7 @@ public class LiveServer extends NanoWSD {
             Method m = s.getMethod();
             boolean me = loopback(s);
             if (uri.equals("/info")) {
-                StringBuilder sb = new StringBuilder("{\"app\":\"mynotes-live\",\"v\":1,\"port\":" + port + ",\"leader\":" + me + ",\"players\":" + players.size() + ",\"inbox\":" + (syncTok != null) + ",\"ips\":[");
+                StringBuilder sb = new StringBuilder("{\"app\":\"mynotes-live\",\"v\":1,\"port\":" + port + ",\"leader\":" + me + ",\"players\":" + players.size() + ",\"inbox\":" + (syncTok != null) + ",\"sync\":2,\"ips\":[");
                 List<String> ips = lanAddresses();
                 for (int i = 0; i < ips.size(); i++) sb.append(i > 0 ? "," : "").append('"').append(esc(ips.get(i))).append('"');
                 return cors(json(sb.append("]}").toString()));

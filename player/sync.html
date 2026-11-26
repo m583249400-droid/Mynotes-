@@ -5,9 +5,11 @@
 // the tablet's own small page: a secure phone page hands it the songs, and it passes them to the tablet next to it
 (()=>{const q=new URLSearchParams(location.search),k=q.get('k')||'',O=window.opener,$=id=>document.getElementById(id);
  if(!O){$('t').textContent='כמעט';$('p').innerHTML='את השירים שולחים מתוך MyNotes במכשיר השני:<br>סנכרון ← שליחת השירים מהמכשיר הזה<br>ושם סורקים את הקוד.';return}
- $('p').textContent='מעביר שירים… לא לסגור את החלון';let got=false;const hi=setInterval(()=>{if(got)return clearInterval(hi);try{O.postMessage({mn:'sync',t:'ready'},'*')}catch(e){}},300);let n=0;
+ $('p').textContent='מעביר… לא לסגור את החלון';let got=false;const hi=setInterval(()=>{if(got)return clearInterval(hi);try{O.postMessage({mn:'sync',t:'ready'},'*')}catch(e){}},300);let n=0,f=0;
  addEventListener('message',async e=>{if(e.source!==O||!e.data||e.data.mn!=='sync')return;got=true;const d=e.data,r=o=>O.postMessage(Object.assign({mn:'sync',id:d.id},o),'*');
   try{if(d.t==='idx'){const x=await fetch('/in/idx?k='+encodeURIComponent(k),{cache:'no-store'});if(x.status===403)return r({ok:false,err:'code'});if(!x.ok)return r({ok:false,err:'net'});r({ok:true,idx:await x.json()})}
    else if(d.t==='put'){const x=await fetch('/in/s/'+d.n+'?k='+encodeURIComponent(k),{method:'PUT',body:JSON.stringify(d.o)});if(!x.ok)return r({ok:false,err:'put '+x.status});n++;$('p').textContent='הועברו '+n+' שירים…';r({ok:true})}
+   else if(d.t==='kv'||d.t==='bl'){const x=await fetch('/in/'+(d.t==='bl'?'bl':'kv/'+d.n)+'?k='+encodeURIComponent(k),{cache:'no-store'});if(!x.ok)return r({ok:false,err:x.status===403?'code':'old'});r({ok:true,v:await x.json()})}
+   else if(d.t==='blob'){const x=await fetch('/in/b/'+d.key+'?k='+encodeURIComponent(k),{method:'PUT',body:d.buf});if(!x.ok)return r({ok:false,err:'file '+x.status});f++;$('p').textContent='הועברו '+f+' קבצי תווים…';r({ok:true})}
    else if(d.t==='bye'){$('t').textContent='הסתיים';$('p').textContent='אפשר לסגור את החלון ולחזור ל-MyNotes';setTimeout(()=>{try{window.close()}catch(e){}},600)}}catch(er){r({ok:false,err:String(er)})}})})();
 </script></body></html>

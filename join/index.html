@@ -35,6 +35,7 @@ input:focus{outline:none;border-color:#f0a23a}
 @keyframes sp{to{transform:rotate(360deg)}}
 .note{font-size:14px;color:#8b93a7;line-height:1.7}
 .link{background:none;border:0;color:#8b93a7;font:14px system-ui;text-decoration:underline;cursor:pointer;padding:6px}
+#cam{width:100%;max-height:44vh;border-radius:16px;background:#000;object-fit:cover}
 [hidden]{display:none!important}
 @media(max-width:420px){.tiles{grid-template-columns:1fr}}
 </style>
@@ -65,6 +66,9 @@ input:focus{outline:none;border-color:#f0a23a}
   <h1 id="f-t">מחפש את המנצח ברשת…</h1>
   <p id="f-p"></p>
   <div class="list" id="found"></div>
+  <video id="cam" playsinline muted hidden></video>
+  <div class="row"><button class="bt" id="scan">סריקת הקוד של המנצח</button></div>
+  <p class="note" id="scan-n">אצל המנצח: "חיבור נגנים". מכוונים את המצלמה אל הקוד שעל המסך שלו.</p>
   <div id="manual" hidden style="width:100%;display:flex;flex-direction:column;gap:12px;align-items:center">
    <input id="addr" placeholder="כתובת המנצח, למשל 192.168.1.20" inputmode="decimal" autocomplete="off" style="direction:ltr">
    <div class="row"><button class="bt" id="addrGo">התחברות</button><button class="bt gh" id="again">חיפוש שוב</button></div>
@@ -88,20 +92,38 @@ $('toLeader').onclick=()=>{if(confirm('להפוך את המכשיר הזה למ�
 function pickInst(){show('s-inst');$('nm').value=get('name');$('insts').innerHTML=INSTS.map(([id,he])=>'<button data-i="'+id+'" class="'+(id===inst?'on':'')+'">'+he+'</button>').join('');$('go').disabled=!inst}
 $('insts').onclick=e=>{const b=e.target.closest('[data-i]');if(!b)return;inst=b.dataset.i;document.querySelectorAll('#insts button').forEach(x=>x.classList.toggle('on',x===b));$('go').disabled=false};
 $('go').onclick=()=>{if(!inst)return;put('inst',inst);put('name',$('nm').value.trim());find()};
-$('chInst').onclick=pickInst;
+$('chInst').onclick=()=>{camOff();pickInst()};
 // ---- finding the leader ----
 function open(hp){put('leader',hp);const nm=get('name');location.href='http://'+hp+'/player/?inst='+encodeURIComponent(inst)+(nm?'&name='+encodeURIComponent(nm):'')+'&app=1'}
-function find(){if(busy)return;busy=true;show('s-find');$('spin').hidden=false;$('f-t').textContent='מחפש את המנצח ברשת…';$('f-p').textContent='';$('found').innerHTML='';$('manual').hidden=true;
+function find(){if(busy)return;camOff();busy=true;show('s-find');$('spin').hidden=false;$('f-t').textContent='מחפש את המנצח ברשת…';$('f-p').textContent='';$('found').innerHTML='';$('manual').hidden=true;
  if(!H){done('');return}try{H.findLeader(get('leader'))}catch(e){done('')}}
-function done(list){busy=false;$('spin').hidden=true;const a=list?list.split(',').filter(Boolean).map(x=>{const p=x.split('|');return {hp:p[0],n:+p[1]||0}}):[];
+function done(list){busy=false;if(stopCam){$('spin').hidden=true;$('f-t').textContent='סריקת הקוד';$('f-p').textContent='';return}$('spin').hidden=true;const a=list?list.split(',').filter(Boolean).map(x=>{const p=x.split('|');return {hp:p[0],n:+p[1]||0}}):[];
  if(a.length===1){$('f-t').textContent='נמצא. מתחבר…';open(a[0].hp);return}
  if(a.length>1){$('f-t').textContent='נמצאו כמה מנצחים ברשת';$('f-p').textContent='בחר למי להתחבר';$('found').innerHTML=a.map(x=>'<button data-hp="'+x.hp+'">'+x.hp+'<span>'+x.n+' נגנים מחוברים</span></button>').join('');return}
  $('f-t').textContent='לא מצאתי את המנצח';$('f-p').textContent='בדוק שהאפליקציה פתוחה אצל המנצח, ושהטאבלט הזה מחובר לאותה רשת.';$('manual').hidden=false;const l=get('leader');if(l)$('addr').value=l.split(':')[0]}
 window.MNJoin={found:done};
+// ---- scanning the leader's code with the camera ----
+let stopCam=null;const wait=ms=>new Promise(r=>setTimeout(r,ms)),note=t=>{$('scan-n').textContent=t};
+function camOff(){if(stopCam){stopCam();stopCam=null}$('scan').textContent='סריקת הקוד של המנצח'}
+async function scan(){if(stopCam){camOff();return}const v=$('cam');
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){note('למכשיר הזה אין גישה למצלמה מכאן. אפשר להקליד את הכתובת.');$('manual').hidden=false;return}
+ let s;try{s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false})}catch(e){note('אין הרשאה למצלמה. מאשרים אותה בהגדרות המכשיר ← אפליקציות ← MyNotes ← הרשאות, או מקלידים את הכתובת.');$('manual').hidden=false;return}
+ let det=null;try{if('BarcodeDetector' in window){const f=await BarcodeDetector.getSupportedFormats();if(f.includes('qr_code'))det=new BarcodeDetector({formats:['qr_code']})}}catch(e){det=null}
+ if(!det&&!window.jsQR){await new Promise(r=>{const x=document.createElement('script');x.src='jsqr.js';x.onload=r;x.onerror=r;document.head.appendChild(x)})}
+ const jq=window.jsQR&&(window.jsQR.default||window.jsQR);if(!det&&!jq){s.getTracks().forEach(t=>t.stop());note('קורא הקודים לא נטען. אפשר להקליד את הכתובת.');$('manual').hidden=false;return}
+ v.srcObject=s;v.hidden=false;await v.play().catch(()=>{});$('scan').textContent='ביטול הסריקה';note('מכוונים את המצלמה אל הקוד שעל המסך של המנצח…');let on=true;
+ stopCam=()=>{on=false;v.hidden=true;try{s.getTracks().forEach(t=>t.stop())}catch(e){}v.srcObject=null};const cv=document.createElement('canvas'),g=cv.getContext('2d',{willReadFrequently:true});
+ while(on){let txt='';try{if(v.readyState>=2&&v.videoWidth){if(det){const r=await det.detect(v);txt=r&&r[0]?r[0].rawValue:''}
+   if(!txt&&jq){const k=Math.min(1,640/v.videoWidth);cv.width=Math.round(v.videoWidth*k);cv.height=Math.round(v.videoHeight*k);g.drawImage(v,0,0,cv.width,cv.height);const d=g.getImageData(0,0,cv.width,cv.height),r=jq(d.data,d.width,d.height,{inversionAttempts:'dontInvert'});txt=r?r.data:''}}}catch(e){}
+  if(txt&&on){const hp=leaderOf(txt);if(hp){camOff();$('f-t').textContent='נמצא. מתחבר…';open(hp);return}note('זה לא הקוד של המנצח. אצל המנצח פותחים "חיבור נגנים".')}
+  await wait(det?200:120)}}
+// the code holds the leader's address: http://192.168.1.20:8080/
+function leaderOf(t){const m=/^\s*(?:https?:\/\/)?((?:\d{1,3}\.){3}\d{1,3})(?::(\d{2,5}))?(?:[\/?#]|\s*$)/i.exec(String(t||''));return m?m[1]+':'+(m[2]||'80'):''}
+$('scan').onclick=scan;
 $('found').onclick=e=>{const b=e.target.closest('[data-hp]');if(b)open(b.dataset.hp)};
 $('again').onclick=find;
 $('addrGo').onclick=()=>{let v=$('addr').value.trim().replace(/^https?:\/\//,'').replace(/\/.*$/,'');if(!v)return;if(!/:\d+$/.test(v))v+=':8080';open(v)};
-window.MNBack=()=>{if(!$('s-find').hidden&&!busy){pickInst();return}};
+window.MNBack=()=>{if(stopCam){camOff();return}if(!$('s-find').hidden&&!busy){pickInst();return}};
 // ---- start ----
 const role=get('role');
 if(!role||q.has('first'))show('s-role');
