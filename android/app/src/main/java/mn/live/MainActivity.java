@@ -3,6 +3,8 @@ package mn.live;
 import android.Manifest;
 import android.app.Activity;
 import android.content.ContentValues;
+import android.content.ContentUris;
+import android.database.Cursor;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -395,6 +397,71 @@ public class MainActivity extends Activity {
             i.addCategory(Intent.CATEGORY_OPENABLE);
             i.setType("*/*");
             startActivityForResult(i, REQ_OPEN);
+        }
+
+        /** the automatic backup: one zip with everything, written to Downloads/MyNotes without asking; the three newest are kept */
+        @JavascriptInterface
+        public void autoBackup() {
+            if (!local()) return;
+            new Thread(new Runnable() {
+                public void run() {
+                    String name = "MyNotes-auto-" + new SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(new Date()) + ".zip";
+                    boolean ok = false;
+                    try {
+                        if (Build.VERSION.SDK_INT >= 29) {
+                            ContentValues cv = new ContentValues();
+                            cv.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                            cv.put(MediaStore.Downloads.MIME_TYPE, "application/zip");
+                            cv.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/MyNotes");
+                            cv.put(MediaStore.Downloads.IS_PENDING, 1);
+                            Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                            if (u == null) throw new IOException("no place to save");
+                            try {
+                                ZipOutputStream z = new ZipOutputStream(new BufferedOutputStream(getContentResolver().openOutputStream(u)));
+                                z.setLevel(1);
+                                zip(z, data, "");
+                                z.close();
+                            } catch (Exception e) {
+                                try { getContentResolver().delete(u, null, null); } catch (Exception x) { /* gone */ }
+                                throw e;
+                            }
+                            ContentValues done = new ContentValues();
+                            done.put(MediaStore.Downloads.IS_PENDING, 0);
+                            getContentResolver().update(u, done, null, null);
+                            ok = true;
+                            // older automatic backups: only this app's own files are seen here
+                            Cursor c = getContentResolver().query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, new String[]{MediaStore.Downloads._ID}, MediaStore.Downloads.DISPLAY_NAME + " LIKE ?", new String[]{"MyNotes-auto-%"}, MediaStore.Downloads.DATE_ADDED + " DESC");
+                            if (c != null) {
+                                int n = 0;
+                                while (c.moveToNext()) {
+                                    if (++n <= 3) continue;
+                                    try { getContentResolver().delete(ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, c.getLong(0)), null, null); } catch (Exception x) { /* stays */ }
+                                }
+                                c.close();
+                            }
+                        } else {
+                            File dir = new File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "MyNotes");
+                            dir.mkdirs();
+                            File f = new File(dir, name);
+                            ZipOutputStream z = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(f)));
+                            z.setLevel(1);
+                            zip(z, data, "");
+                            z.close();
+                            ok = true;
+                            File[] l = dir.listFiles();
+                            if (l != null) {
+                                List<File> old = new ArrayList<>();
+                                for (File x : l) if (x.getName().startsWith("MyNotes-auto-")) old.add(x);
+                                Collections.sort(old, new java.util.Comparator<File>() { public int compare(File a, File b) { return b.getName().compareTo(a.getName()); } });
+                                for (int i = 3; i < old.size(); i++) old.get(i).delete();
+                            }
+                        }
+                    } catch (Exception e) {
+                        ok = false;
+                    }
+                    js("window.MNBackupDone&&MNBackupDone(" + ok + ",'" + name + "')");
+                }
+            }).start();
         }
 
         /** a file the app made (PDF, MIDI, backup) goes to the Downloads folder */
