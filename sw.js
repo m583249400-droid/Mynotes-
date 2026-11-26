@@ -1,4 +1,4 @@
-const C='mynotes-202611260154';const F=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png','./vendor/opensheetmusicdisplay.min.js','./vendor/pdf.min.js','./vendor/pdf.worker.min.js','./vendor/qrcode.js','./vendor/sql-wasm.js','./vendor/sql-wasm.wasm'];
+const C='mynotes-202611260226';const F=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png','./vendor/opensheetmusicdisplay.min.js','./vendor/pdf.min.js','./vendor/pdf.worker.min.js','./vendor/qrcode.js','./vendor/sql-wasm.js','./vendor/sql-wasm.wasm'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>Promise.all(F.map(u=>fetch(new Request(u,{cache:'reload'})).then(r=>{if(r.ok)return c.put(u,r)}).catch(()=>{})))));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 const page=r=>r.mode==='navigate'||/\/(index\.html)?$/.test(new URL(r.url).pathname)||/\.webmanifest$/.test(new URL(r.url).pathname);
