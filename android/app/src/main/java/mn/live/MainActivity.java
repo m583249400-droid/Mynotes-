@@ -299,7 +299,23 @@ public class MainActivity extends Activity {
     }
 
     /** what the pages may ask the tablet to do */
+    private Snd snd;
+    private synchronized Snd snd() { if (snd == null) snd = new Snd(getApplicationContext()); return snd; }
+
     class Host {
+        /** piano keys played by hand: Android's own low-delay sound */
+        @JavascriptInterface
+        public void sndLoad(String key, String b64) { if (local()) snd().load(key, b64); }
+
+        @JavascriptInterface
+        public int sndReady() { return snd().ready(); }
+
+        @JavascriptInterface
+        public int sndOn(String key, float rate, float vol) { return snd().on(key, rate, vol); }
+
+        @JavascriptInterface
+        public void sndOff(int stream) { snd().off(stream); }
+
         @JavascriptInterface
         public String version() {
             try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return ""; }
@@ -512,6 +528,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (server != null) server.stop();
+        if (snd != null) snd.release();
         if (web != null) web.destroy();
         super.onDestroy();
     }
