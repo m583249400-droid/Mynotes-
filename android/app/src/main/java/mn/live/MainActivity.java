@@ -303,18 +303,24 @@ public class MainActivity extends Activity {
     private synchronized Snd snd() { if (snd == null) snd = new Snd(getApplicationContext()); return snd; }
 
     class Host {
-        /** piano keys played by hand: Android's own low-delay sound */
+        /** the writing screen's sound engine: samples in once, then "play this at that moment" */
         @JavascriptInterface
-        public void sndLoad(String key, String b64) { if (local()) snd().load(key, b64); }
+        public int sndInit() { return local() && snd().ok() ? snd().sr : 0; }
 
         @JavascriptInterface
-        public int sndReady() { return snd().ready(); }
+        public void sndPcm(String key, int rate, String b64) { if (local()) snd().pcm(key, rate, b64); }
 
         @JavascriptInterface
-        public int sndOn(String key, float rate, float vol) { return snd().on(key, rate, vol); }
+        public int sndCount() { return snd().count(); }
 
         @JavascriptInterface
-        public void sndOff(int stream) { snd().off(stream); }
+        public int sndPlay(String key, double rate, double vol, double delayMs, int group, double loopA, double loopB) { return snd().play(key, rate, vol, delayMs, group, loopA, loopB); }
+
+        @JavascriptInterface
+        public void sndStop(int id, double delayMs, double relMs) { snd().stop(id, delayMs, relMs); }
+
+        @JavascriptInterface
+        public void sndKill(int mask) { snd().kill(mask); }
 
         @JavascriptInterface
         public String version() {
